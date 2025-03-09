@@ -30,42 +30,23 @@ Rename-Computer -NewName $NewHostname -Force
 Write-Host "El nombre del servidor ha sido cambiado a $NewHostname" -ForegroundColor Green
 
 # ==========================
-# Descargar e instalar BgInfo
+# Agregar BgInfo al inicio de sesión usando el Registro de Windows
 # ==========================
-$BgInfoUrl = "https://download.sysinternals.com/files/BgInfo.zip"
-$BgInfoZip = "$env:TEMP\BgInfo.zip"
-$BgInfoPath = "C:\BgInfo"
+$BgInfoPath = "C:\BgInfo"  # Ajusta esta ruta si BgInfo está en otro lugar
 $BgInfoExe = "$BgInfoPath\Bginfo64.exe"
 $BgInfoConfig = "$BgInfoPath\custom.bgi"
 
-# Crear la carpeta destino si no existe
-if (!(Test-Path -Path $BgInfoPath)) {
-    New-Item -ItemType Directory -Path $BgInfoPath | Out-Null
-}
-
-# Descargar BgInfo
-Write-Host "Descargando BgInfo desde Sysinternals..."
-Invoke-WebRequest -Uri $BgInfoUrl -OutFile $BgInfoZip
-
-# Extraer BgInfo
-Expand-Archive -Path $BgInfoZip -DestinationPath $BgInfoPath -Force
-Write-Host "BgInfo descargado y extraído en $BgInfoPath" -ForegroundColor Green
-
-# Crear un archivo de configuración vacío si no existe
-if (!(Test-Path -Path $BgInfoConfig)) {
-    New-Item -ItemType File -Path $BgInfoConfig | Out-Null
-}
-
-# ==========================
-# Agregar BgInfo al inicio de sesión usando el Registro de Windows
-# ==========================
 $RegPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 $RegName = "BGInfo"
 $RegValue = "`"$BgInfoExe`" `"$BgInfoConfig`" /silent /timer:0 /accepteula"
 
-# Crear la clave de registro para ejecución en el inicio
-Set-ItemProperty -Path $RegPath -Name $RegName -Value $RegValue
-Write-Host "BgInfo configurado para ejecutarse en el inicio del sistema." -ForegroundColor Green
+# Agregar clave de registro solo si BgInfo existe
+if (Test-Path $BgInfoExe) {
+    Set-ItemProperty -Path $RegPath -Name $RegName -Value $RegValue
+    Write-Host "Clave de registro agregada para ejecutar BgInfo en el inicio." -ForegroundColor Green
+} else {
+    Write-Host "No se encontró BgInfo en $BgInfoPath. La clave de registro no fue agregada." -ForegroundColor Yellow
+}
 
 # ==========================
 # Reiniciar el servidor
