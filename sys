@@ -8,14 +8,31 @@ $PrimaryDNS = Read-Host "Ingrese el DNS Primario"
 $Adapter = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
 
 if ($Adapter) {
+    # Mostrar la interfaz seleccionada
+    Write-Host "Configurando la IP en la interfaz: $($Adapter.Name)"
+
     # Configurar la nueva dirección IP
     $InterfaceIndex = $Adapter.ifIndex
-    New-NetIPAddress -InterfaceIndex $InterfaceIndex -IPAddress $NewIPAddress -PrefixLength $SubnetMask -DefaultGateway $Gateway -Confirm:$false
+
+    # Eliminar IP anterior (si hay alguna)
+    Get-NetIPAddress -InterfaceIndex $InterfaceIndex | Remove-NetIPAddress -Confirm:$false
+
+    # Configurar la nueva IP
+    New-NetIPAddress -InterfaceIndex $InterfaceIndex -IPAddress $NewIPAddress -PrefixLength $SubnetMask -Confirm:$false
+
+    # Eliminar cualquier puerta de enlace anterior (si existe)
+    $existingGateway = Get-NetRoute -InterfaceIndex $InterfaceIndex | Where-Object { $_.DestinationPrefix -eq "0.0.0.0/0" }
+    if ($existingGateway) {
+        Remove-NetRoute -InterfaceIndex $InterfaceIndex -DestinationPrefix "0.0.0.0/0" -Confirm:$false
+        Write-Host "Puerta de enlace anterior eliminada." -ForegroundColor Green
+    }
+
+    # Configurar la nueva puerta de enlace
+    New-NetRoute -InterfaceIndex $InterfaceIndex -DestinationPrefix "0.0.0.0/0" -NextHop $Gateway -Confirm:$false
+    Write-Host "Puerta de enlace configurada: $Gateway" -ForegroundColor Green
 
     # Configurar DNS Primario
     Set-DnsClientServerAddress -InterfaceIndex $InterfaceIndex -ServerAddresses $PrimaryDNS
-
-    Write-Host "Dirección IP configurada: $NewIPAddress" -ForegroundColor Green
     Write-Host "DNS Primario configurado: $PrimaryDNS" -ForegroundColor Green
 } else {
     Write-Host "No se encontró un adaptador de red activo." -ForegroundColor Red
