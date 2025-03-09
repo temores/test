@@ -1,0 +1,67 @@
+# Solicitar la nueva dirección IP
+$NewIPAddress = Read-Host "Ingrese la nueva dirección IP"
+$SubnetMask = Read-Host "Ingrese la máscara de subred (ej. 24 para /24)"
+$Gateway = Read-Host "Ingrese la puerta de enlace"
+
+# Obtener el adaptador de red activo
+$Adapter = Get-NetAdapter | Where-Object { $_.Status -eq "Up" }
+
+if ($Adapter) {
+    # Configurar la nueva dirección IP
+    $InterfaceIndex = $Adapter.ifIndex
+    New-NetIPAddress -InterfaceIndex $InterfaceIndex -IPAddress $NewIPAddress -PrefixLength $SubnetMask -DefaultGateway $Gateway -Confirm:$false
+
+    Write-Host "Dirección IP cambiada a $NewIPAddress" -ForegroundColor Green
+} else {
+    Write-Host "No se encontró un adaptador de red activo." -ForegroundColor Red
+    exit
+}
+
+# Solicitar el nuevo nombre del host
+$NewHostname = Read-Host "Ingrese el nuevo nombre de host"
+
+# Cambiar el nombre del host
+Rename-Computer -NewName $NewHostname -Force
+Write-Host "El nombre del servidor ha sido cambiado a $NewHostname" -ForegroundColor Green
+
+# Descargar BgInfo desde Sysinternals
+$BgInfoUrl = "https://download.sysinternals.com/files/BgInfo.zip"
+$BgInfoZip = "$env:TEMP\BgInfo.zip"
+$BgInfoPath = "C:\BgInfo"
+
+# Crear la carpeta destino
+if (!(Test-Path -Path $BgInfoPath)) {
+    New-Item -ItemType Directory -Path $BgInfoPath | Out-Null
+}
+
+# Descargar BgInfo
+Write-Host "Descargando BgInfo desde Sysinternals..."
+Invoke-WebRequest -Uri $BgInfoUrl -OutFile $BgInfoZip
+
+# Extraer BgInfo
+Expand-Archive -Path $BgInfoZip -DestinationPath $BgInfoPath -Force
+Write-Host "BgInfo descargado y extraído en $BgInfoPath" -ForegroundColor Green
+
+# Configurar BgInfo para ejecutarse en el inicio del sistema
+$BgInfoExe = "$BgInfoPath\Bginfo64.exe"
+$BgInfoConfig = "$BgInfoPath\BgInfo.bgi"
+$StartupShortcut = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup\BgInfo.lnk"
+
+# Crear un archivo de configuración vacío si no existe
+if (!(Test-Path -Path $BgInfoConfig)) {
+    New-Item -ItemType File -Path $BgInfoConfig | Out-Null
+}
+
+# Crear un acceso directo para que BgInfo se ejecute en cada inicio
+$WScriptShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WScriptShell.CreateShortcut($StartupShortcut)
+$Shortcut.TargetPath = $BgInfoExe
+$Shortcut.Arguments = "$BgInfoConfig /silent /timer:0"
+$Shortcut.Save()
+
+Write-Host "BgInfo configurado para ejecutarse en el inicio del sistema." -ForegroundColor Green
+
+# Reiniciar el servidor
+Write-Host "Reiniciando el servidor en 10 segundos..."
+Start-Sleep -Seconds 10
+Restart-Computer -Force
